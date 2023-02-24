@@ -23,7 +23,7 @@
 ; 1 -> last page of 16kb flash
 ; 0 -> last page of 32kb flash
 ; BOOTLOADER_BLOCK_CUSTOM can alternatively be used to store it in a custom page.
-FLASH_SIZE_16 = 1
+FLASH_SIZE_16 = 0
 ; BOOTLOADER_BLOCK_CUSTOM   = 0x6600 ; should be divisible by page size (0x200)
 
 ; If set, this will prevent read back of the flash when the RDIS bit is configured
@@ -69,7 +69,7 @@ CONFIG_DESC_SIZE = 0x20
 ; address space definitions
 _BLOCK_SIZE             = 0x0200
 _BOOTLOADER_BLOCK_F16   = 0x3e00
-_BOOTLOADER_BLOCK_F32   = 0x7e00
+_BOOTLOADER_BLOCK_F32   = 0x6000
 _XRAM                   = 0x8000
 
 .if FLASH_SIZE_16
@@ -540,11 +540,23 @@ cmd6:
 ; cmd7: select whether to program upper or lower region on 32kb flash chips
 cmd7:
 .if RESET_COMMAND
-    cjne    r6, #CMD_RESET, no_command_match
+    cjne    r6, #CMD_RESET, cmd8
     mov     _TICKDV, #0x03
     acall   _kick_dog
     ajmp    .
 .endif
+
+; cmd8: Write 0xF1 to address 0x7FF0. FSR.STP enable
+cmd8:
+    cjne    r6, #CMD_STP_ON, no_command_match
+    clr     _EA
+    acall   _flash_wen
+    mov     _DPL, #0xF0
+    mov     _DPH, #0x7F
+    mov     a, #0xF1
+    movx    @dptr, a
+    jb      _RDYN, .
+    clr     _WEN
 
 ; didn't match any of the commands above, or fell through to this branch
 no_command_match:
