@@ -63,6 +63,10 @@ def usb_get_response():
     # todo error handling
     return ep1in.read(64, 1000)
 
+def stp_on():
+    usb_cmd(bootloader.CMD_STP_ON)
+#    print_usb_response()
+
 def bootloader_version():
     usb_cmd(bootloader.CMD_VERSION)
     print_usb_response()
@@ -108,20 +112,25 @@ def chunk_iterator(data, chunk_size):
 
 def flash_read_to_hex(size=16):
     # result = []
-    if size not in [16, 32]:
-        raise Exception("Cannot read flash size {} only 16 or 32".format(size))
+    if size not in [1, 16, 32]:
+        raise Exception("Cannot read flash size {} only 1 or 16 or 32".format(size))
 
     page_size = 0x200
     block_size = 0x40
     blocks_per_16kb = 0x100
     hexfile = intelhex.IntelHex()
-    cur_addr = 0x0000
+    if size == 1:
+        cur_addr = 0x7e00
+        blocks_per_size = 0xf8
+    else:
+        cur_addr = 0x0000
+        blocks_per_size = 0x0
 
     def read_16kb_region():
         chunks_per_block = 4
         chunk_size = block_size // chunks_per_block
         nonlocal cur_addr
-        for i in range(blocks_per_16kb):
+        for i in range(blocks_per_size, blocks_per_16kb):
             block = flash_read_block(i)
             # break the block into chunks to we can check which regions
             # actuall have flash data
@@ -130,9 +139,10 @@ def flash_read_to_hex(size=16):
                     hexfile.puts(cur_addr, bytes(chunk))
                 cur_addr += chunk_size
 
-    flash_select_half(0)
-    read_16kb_region()
-    if size == 32:
+    if size == 16 or size == 32:
+        flash_select_half(0)
+        read_16kb_region()
+    if size == 32 or size == 1:
         flash_select_half(1)
         read_16kb_region()
     return hexfile
@@ -198,6 +208,23 @@ elif arg == "write_hex":
 
     reattach = False;
     mcu_reset()
+    print("Done")
+
+elif arg == "stp_off":
+    hexfile = flash_read_to_hex(size=1)
+    data = hexfile.tobinarray()
+    #print(hexfile.dump())
+
+    data[0x1f0] = 0xff
+
+    flash_write_page(63, data)
+
+    reattach = False;
+    #mcu_reset()
+    print("Done")
+
+elif arg == "stp_on":
+    stp_on()
     print("Done")
 
 elif arg == "read_disable":
