@@ -1,9 +1,10 @@
-TARGET   = bootloader.hex
+TARGET   = bootloader.ihx
 
 ASM_FILES = main.S
 
 AS       = sdas8051
 CC       = sdcc
+PACKIHX  = packihx
 
 ASFLAGS  = -xglos
 
@@ -15,6 +16,7 @@ all: clean $(TARGET) size
 
 $(TARGET): $(REL_FILES)
 	$(CC) $(REL_FILES) -o $(TARGET)
+	$(PACKIHX) $(TARGET) > bootloader.hex
 
 $(REL_FILES): | obj
 
