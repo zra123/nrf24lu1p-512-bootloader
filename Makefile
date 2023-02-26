@@ -5,6 +5,7 @@ ASM_FILES = main.S
 AS       = sdas8051
 CC       = sdcc
 PACKIHX  = packihx
+MAKEBIN  = makebin
 
 ASFLAGS  = -xglos
 
@@ -17,6 +18,7 @@ all: clean $(TARGET) size
 $(TARGET): $(REL_FILES)
 	$(CC) $(REL_FILES) -o $(TARGET)
 	$(PACKIHX) $(TARGET) > bootloader.hex
+	$(MAKEBIN) -s 0x67FE $(TARGET) bootloader.bin
 
 $(REL_FILES): | obj
 
@@ -30,7 +32,7 @@ size: $(TARGET)
 	size $(TARGET)
 
 clean:
-	rm -f $(TARGET) *.lnk *.lst *.map *.rel *.rst *.sym *.mem *.lk *.asm *.lk *.cdb *.omf
+	rm -f $(TARGET) *.lnk *.lst *.map *.rel *.rst *.sym *.mem *.lk *.asm *.lk *.cdb *.omf *.ihx *.bin
 	rm -fr obj
 
 flash: clean $(TARGET) size
