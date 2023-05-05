@@ -5,6 +5,8 @@ import time
 import bootloader
 import sys
 import intelhex
+import os
+import click
 
 ID_VENDOR = 0x1915
 ID_PRODUCT = 0x0101
@@ -147,44 +149,107 @@ def flash_read_to_hex(size=16):
         read_16kb_region()
     return hexfile
 
+def stp_off():
+        hexfile_page = flash_read_to_hex(size=1)
+        data_page = hexfile_page.tobinarray()
+        #print(hexfile_page.dump())
+
+        if len(data_page) >= 0x1f0 and click.confirm("STP protection is ON! Disable protection?",default=True):
+            for i in range(0x1f0,0x1ff):
+                data_page[i] = 0xff
+
+            flash_write_page(63, data_page)
+
+            hexfile_page = flash_read_to_hex(size=1)
+            data_page = hexfile_page.tobinarray()
+            if len(data_page) <= 0x1f0:
+                print("STP OFF")
+            else:
+                print("ERROR: STP protection is ON!")
+
+        #mcu_reset()
+
 def hex_dump(data):
     addr = 0
     for block in [data[i:i+64] for i in range(0, len(data), 64)]:
         print("{:04x}".format(addr), bytes_to_str(block))
         addr += 64
 
-import sys, time
-arg = sys.argv[1]
+try:
+    arg = sys.argv[1]
+except IndexError:
+    print('''
+    read_16	 - Read 16kb to file
+    read_32	 - Read 32kb to file
+    version	 - Print bootloader version
+    write	 - Write file to dongle
+    stp_off	 - Disable FSR.STP register
+    stp_on	 - Enable FSR.STP register
+    read_disable - Turn on flash MainBlock readback disable
+    ''')
+    sys.exit()
 
 # TODO: cleanup cmd line handling
-outfile = "readback.hex"
 
 if arg == "read_16":
+    try:
+        outfile = sys.argv[2]
+    except IndexError:
+        print("Out_file.hex or .bin")
+        sys.exit()
     ihex = flash_read_to_hex(size=16)
     ihex.dump()
-    ihex.tofile(outfile, "hex")
+    ext = os.path.splitext(os.path.basename(outfile))[1]
+    if ext == ".hex":
+        ihex.tofile(outfile, "hex")
+    else:
+        ihex.tofile(outfile, "bin")
 
 elif arg == "read_32":
+    try:
+        outfile = sys.argv[2]
+    except IndexError:
+        print("Out_file.hex or .bin")
+        sys.exit()
     ihex = flash_read_to_hex(size=32)
     ihex.dump()
-    ihex.tofile(outfile, "hex")
+    ext = os.path.splitext(os.path.basename(outfile))[1]
+    if ext == ".hex":
+        ihex.tofile(outfile, "hex")
+    else:
+        ihex.tofile(outfile, "bin")
 
 elif arg == "version":
     bootloader_version()
 
 # TODO: read back flash and verify what we wrote #
-elif arg == "write_hex":
+elif arg == "write":
     flash_size = 0x8000
     page_size = 0x0200
     num_pages = flash_size // page_size
 
+    try:
+        write_file = sys.argv[2]
+    except IndexError:
+        print("Write_file.hex or .bin")
+        sys.exit()
+
     hexfile = intelhex.IntelHex()
-    hexfile.loadhex(sys.argv[2])
+    ext = os.path.splitext(os.path.basename(write_file))[1]
+    if ext == ".hex":
+        hexfile.loadhex(write_file)
+    elif ext == ".bin":
+        hexfile.loadbin(write_file)
+    elif ext != ".hex" or ext != ".bin":
+        raise TypeError("Write_file.hex or .bin")
+
     if hexfile.maxaddr() > flash_size:
         raise "hexfile too large"
 
     hexfile.padding = 0xff
     data = hexfile.tobinarray(start=0x0000, end=flash_size)
+
+    stp_off()
 
     print("Starting to write hex file:");
 
@@ -211,16 +276,7 @@ elif arg == "write_hex":
     print("Done")
 
 elif arg == "stp_off":
-    hexfile = flash_read_to_hex(size=1)
-    data = hexfile.tobinarray()
-    #print(hexfile.dump())
-
-    data[0x1f0] = 0xff
-
-    flash_write_page(63, data)
-
-    reattach = False;
-    #mcu_reset()
+    stp_off()
     print("Done")
 
 elif arg == "stp_on":
