@@ -19,6 +19,8 @@ debug = True
 # def usb_setup():
 # dev = usb.core.find()
 dev = usb.core.find(idVendor=ID_VENDOR, idProduct=ID_PRODUCT)
+if not dev:
+    raise Exception("Unable to find dongle")
 
 intf_num = 0
 
