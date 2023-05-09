@@ -1,12 +1,16 @@
 #!/bin/env python
 import usb.core
 import usb.util
+import usb.backend.libusb1
+import libusb_package
 import time
 import bootloader
 import sys
 import intelhex
 import os
 import click
+
+backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
 
 ID_VENDOR = 0x1915
 ID_PRODUCT = 0x0101
@@ -18,18 +22,10 @@ debug = True
 
 # def usb_setup():
 # dev = usb.core.find()
-dev = usb.core.find(idVendor=ID_VENDOR, idProduct=ID_PRODUCT)
+dev = usb.core.find(idVendor=ID_VENDOR, idProduct=ID_PRODUCT, backend=backend)
 if not dev:
     print("Unable to find dongle")
     sys.exit()
-
-intf_num = 0
-
-reattach = False
-if dev.is_kernel_driver_active(intf_num):
-    print("disable kernel driver")
-    reattach = True
-    dev.detach_kernel_driver(intf_num)
 
 cfg = dev.get_active_configuration()
 intf = cfg[(0,0)]
@@ -55,7 +51,11 @@ def usb_cmd(cmd, arg=None):
     raw_cmd = bytes([cmd])
     if arg != None:
         raw_cmd = bytes([cmd, arg])
-    ep1out.write(raw_cmd)
+    try:
+        ep1out.write(raw_cmd)
+    except Exception as e:
+        print("Error: Please install the driver from Zadig")
+        sys.exit()
 
 def read_usb_in():
     data = ep1in.read(64, 1000)
@@ -247,14 +247,14 @@ elif arg == "write":
         raise TypeError("Write_file.hex or .bin")
 
     if hexfile.maxaddr() > flash_size:
-        raise "hexfile too large"
+        raise "file too large"
 
     hexfile.padding = 0xff
     data = hexfile.tobinarray(start=0x0000, end=flash_size)
 
     stp_off()
 
-    print("Starting to write hex file:");
+    print("Starting to write file:");
 
     for page_num in range(0, num_pages):
         page_start = page_num * page_size
@@ -274,7 +274,6 @@ elif arg == "write":
 
         flash_write_page(page_num, page_data)
 
-    reattach = False;
     mcu_reset()
     print("Done")
 
