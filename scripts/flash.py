@@ -20,7 +20,8 @@ debug = True
 # dev = usb.core.find()
 dev = usb.core.find(idVendor=ID_VENDOR, idProduct=ID_PRODUCT)
 if not dev:
-    raise Exception("Unable to find dongle")
+    print("Unable to find dongle")
+    sys.exit()
 
 intf_num = 0
 
