@@ -247,14 +247,14 @@ elif arg == "write":
         raise TypeError("Write_file.hex or .bin")
 
     if hexfile.maxaddr() > flash_size:
-        raise "hexfile too large"
+        raise "file too large"
 
     hexfile.padding = 0xff
     data = hexfile.tobinarray(start=0x0000, end=flash_size)
 
     stp_off()
 
-    print("Starting to write hex file:");
+    print("Starting to write file:");
 
     for page_num in range(0, num_pages):
         page_start = page_num * page_size
