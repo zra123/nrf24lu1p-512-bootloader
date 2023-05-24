@@ -9,6 +9,8 @@ import sys
 import intelhex
 import os
 import click
+from typing import Optional
+from ctypes import wintypes, windll, create_unicode_buffer
 
 backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
 
@@ -25,6 +27,7 @@ debug = True
 dev = usb.core.find(idVendor=ID_VENDOR, idProduct=ID_PRODUCT, backend=backend)
 if not dev:
     print("Unable to find dongle")
+    input("Press Enter to exit...\n")
     sys.exit()
 
 cfg = dev.get_active_configuration()
@@ -44,6 +47,18 @@ ep1out = usb.util.find_descriptor(
         e.bEndpointAddress == 0x01)
 
 
+def getForegroundWindowTitle() -> Optional[str]:
+    hWnd = windll.user32.GetForegroundWindow()
+    length = windll.user32.GetWindowTextLengthW(hWnd)
+    buf = create_unicode_buffer(length + 1)
+    windll.user32.GetWindowTextW(hWnd, buf, length + 1)
+    
+    # 1-liner alternative: return buf.value if buf.value else None
+    if buf.value:
+        return buf.value
+    else:
+        return None
+
 def bytes_to_str(byte_array):
     return ''.join(["{:02x}".format(byte) for byte in byte_array])
 
@@ -55,6 +70,7 @@ def usb_cmd(cmd, arg=None):
         ep1out.write(raw_cmd)
     except Exception as e:
         print("Error: Please install the driver from Zadig")
+        input("Press Enter to exit...\n")
         sys.exit()
 
 def read_usb_in():
@@ -178,23 +194,73 @@ def hex_dump(data):
         print("{:04x}".format(addr), bytes_to_str(block))
         addr += 64
 
+def help():
+    print('''
+    -r16,  read_16	 - Read 16kb to file
+    -r32,  read_32	 - Read 32kb to file
+    -v,    version	 - Print bootloader version
+    -w,    write	 - Write file to dongle
+    -off,  stp_off	 - Disable FSR.STP register
+    -on,   stp_on	 - Enable FSR.STP register
+    -rd,   read_disable	 - Turn on flash MainBlock readback disable''')
+
+
+if os.path.exists(getForegroundWindowTitle()):
+    flash_size = 0x8000
+    page_size = 0x0200
+    num_pages = flash_size // page_size
+
+    write_file = sys._MEIPASS + '\\watchman_dongle_mod.hex'
+
+    hexfile = intelhex.IntelHex()
+    ext = os.path.splitext(os.path.basename(write_file))[1]
+    if ext == ".hex":
+        hexfile.loadhex(write_file)
+
+    if hexfile.maxaddr() > flash_size:
+        raise "file too large"
+
+    hexfile.padding = 0xff
+    data = hexfile.tobinarray(start=0x0000, end=flash_size)
+    print("Starting to write watchman_dongle_mod.hex")
+
+    stp_off()
+
+    print("Starting to write file:")
+
+    for page_num in range(0, num_pages):
+        page_start = page_num * page_size
+        page_end = (page_num+1) * page_size
+        page_data = data[page_start:page_end]
+
+        is_empty_page = True
+        for b in page_data:
+            if b != 0xff:
+                is_empty_page = False
+                break
+
+        if is_empty_page:
+            continue
+
+        # print("{:x} {:x} {:x} {}".format(page_start, page_end, len(page_data), page_data))
+
+        flash_write_page(page_num, page_data)
+
+    mcu_reset()
+    print("Done")
+    time.sleep(5)
+
+
+
 try:
     arg = sys.argv[1]
 except IndexError:
-    print('''
-    read_16	 - Read 16kb to file
-    read_32	 - Read 32kb to file
-    version	 - Print bootloader version
-    write	 - Write file to dongle
-    stp_off	 - Disable FSR.STP register
-    stp_on	 - Enable FSR.STP register
-    read_disable - Turn on flash MainBlock readback disable
-    ''')
+    help()
     sys.exit()
 
 # TODO: cleanup cmd line handling
 
-if arg == "read_16":
+if arg == "read_16" or arg == "-r16":
     try:
         outfile = sys.argv[2]
     except IndexError:
@@ -208,7 +274,7 @@ if arg == "read_16":
     else:
         ihex.tofile(outfile, "bin")
 
-elif arg == "read_32":
+elif arg == "read_32" or arg == "-r32":
     try:
         outfile = sys.argv[2]
     except IndexError:
@@ -222,11 +288,11 @@ elif arg == "read_32":
     else:
         ihex.tofile(outfile, "bin")
 
-elif arg == "version":
+elif arg == "version" or arg == "-v":
     bootloader_version()
 
 # TODO: read back flash and verify what we wrote #
-elif arg == "write":
+elif arg == "write" or arg == "-w":
     flash_size = 0x8000
     page_size = 0x0200
     num_pages = flash_size // page_size
@@ -254,7 +320,7 @@ elif arg == "write":
 
     stp_off()
 
-    print("Starting to write file:");
+    print("Starting to write file:")
 
     for page_num in range(0, num_pages):
         page_start = page_num * page_size
@@ -277,16 +343,20 @@ elif arg == "write":
     mcu_reset()
     print("Done")
 
-elif arg == "stp_off":
+elif arg == "stp_off" or arg == "-off":
     stp_off()
     print("Done")
 
-elif arg == "stp_on":
+elif arg == "stp_on" or arg == "-on":
     stp_on()
     print("Done")
 
-elif arg == "read_disable":
+elif arg == "read_disable" or arg == "-rd":
     flash_read_disable()
+
+elif arg == "help" or arg == "-h":
+    help()
+    pass
 
 elif arg == "new_cmd":
     pass
