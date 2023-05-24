@@ -178,23 +178,25 @@ def hex_dump(data):
         print("{:04x}".format(addr), bytes_to_str(block))
         addr += 64
 
+def help():
+    print('''
+    -r16,  read_16	 - Read 16kb to file
+    -r32,  read_32	 - Read 32kb to file
+    -v,    version	 - Print bootloader version
+    -w,    write	 - Write file to dongle
+    -off,  stp_off	 - Disable FSR.STP register
+    -on,   stp_on	 - Enable FSR.STP register
+    -rd,   read_disable	 - Turn on flash MainBlock readback disable''')
+
 try:
     arg = sys.argv[1]
 except IndexError:
-    print('''
-    read_16	 - Read 16kb to file
-    read_32	 - Read 32kb to file
-    version	 - Print bootloader version
-    write	 - Write file to dongle
-    stp_off	 - Disable FSR.STP register
-    stp_on	 - Enable FSR.STP register
-    read_disable - Turn on flash MainBlock readback disable
-    ''')
+    help()
     sys.exit()
 
 # TODO: cleanup cmd line handling
 
-if arg == "read_16":
+if arg == "read_16" or arg == "-r16":
     try:
         outfile = sys.argv[2]
     except IndexError:
@@ -208,7 +210,7 @@ if arg == "read_16":
     else:
         ihex.tofile(outfile, "bin")
 
-elif arg == "read_32":
+elif arg == "read_32" or arg == "-r32":
     try:
         outfile = sys.argv[2]
     except IndexError:
@@ -222,11 +224,11 @@ elif arg == "read_32":
     else:
         ihex.tofile(outfile, "bin")
 
-elif arg == "version":
+elif arg == "version" or arg == "-v":
     bootloader_version()
 
 # TODO: read back flash and verify what we wrote #
-elif arg == "write":
+elif arg == "write" or arg == "-w":
     flash_size = 0x8000
     page_size = 0x0200
     num_pages = flash_size // page_size
@@ -254,7 +256,7 @@ elif arg == "write":
 
     stp_off()
 
-    print("Starting to write file:");
+    print("Starting to write file:")
 
     for page_num in range(0, num_pages):
         page_start = page_num * page_size
@@ -278,16 +280,20 @@ elif arg == "write":
     mcu_reset()
     print("Done")
 
-elif arg == "stp_off":
+elif arg == "stp_off" or arg == "-off":
     stp_off()
     print("Done")
 
-elif arg == "stp_on":
+elif arg == "stp_on" or arg == "-on":
     stp_on()
     print("Done")
 
-elif arg == "read_disable":
+elif arg == "read_disable" or arg == "-rd":
     flash_read_disable()
+
+elif arg == "help" or arg == "-h":
+    help()
+    pass
 
 elif arg == "new_cmd":
     pass
