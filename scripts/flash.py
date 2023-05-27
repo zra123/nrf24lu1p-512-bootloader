@@ -168,7 +168,7 @@ def stp_off():
             if len(data_page) <= 0x1f0:
                 print("STP OFF")
             else:
-                print("ERROR: STP protection is ON!")
+                raise Exception("STP protection is still ON!")
 
         #mcu_reset()
 
