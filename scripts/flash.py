@@ -184,7 +184,7 @@ def stp_off():
             if len(data_page) <= 0x1f0:
                 print("STP OFF")
             else:
-                print("ERROR: STP protection is ON!")
+                raise Exception("STP protection is still ON!")
 
         #mcu_reset()
 
@@ -204,59 +204,16 @@ def help():
     -on,   stp_on	 - Enable FSR.STP register
     -rd,   read_disable	 - Turn on flash MainBlock readback disable''')
 
+check_cmd = os.path.exists(getForegroundWindowTitle())
 
-if os.path.exists(getForegroundWindowTitle()):
-    flash_size = 0x8000
-    page_size = 0x0200
-    num_pages = flash_size // page_size
-
-    write_file = sys._MEIPASS + '\\watchman_dongle_mod.hex'
-
-    hexfile = intelhex.IntelHex()
-    ext = os.path.splitext(os.path.basename(write_file))[1]
-    if ext == ".hex":
-        hexfile.loadhex(write_file)
-
-    if hexfile.maxaddr() > flash_size:
-        raise "file too large"
-
-    hexfile.padding = 0xff
-    data = hexfile.tobinarray(start=0x0000, end=flash_size)
-    print("Starting to write watchman_dongle_mod.hex")
-
-    stp_off()
-
-    print("Starting to write file:")
-
-    for page_num in range(0, num_pages):
-        page_start = page_num * page_size
-        page_end = (page_num+1) * page_size
-        page_data = data[page_start:page_end]
-
-        is_empty_page = True
-        for b in page_data:
-            if b != 0xff:
-                is_empty_page = False
-                break
-
-        if is_empty_page:
-            continue
-
-        # print("{:x} {:x} {:x} {}".format(page_start, page_end, len(page_data), page_data))
-
-        flash_write_page(page_num, page_data)
-
-    mcu_reset()
-    print("Done")
-    time.sleep(5)
-
-
-
-try:
-    arg = sys.argv[1]
-except IndexError:
-    help()
-    sys.exit()
+if check_cmd:
+    arg = "write"
+else:
+    try:
+        arg = sys.argv[1]
+    except IndexError:
+        help()
+        sys.exit()
 
 # TODO: cleanup cmd line handling
 
@@ -297,11 +254,14 @@ elif arg == "write" or arg == "-w":
     page_size = 0x0200
     num_pages = flash_size // page_size
 
-    try:
-        write_file = sys.argv[2]
-    except IndexError:
-        print("Write_file.hex or .bin")
-        sys.exit()
+    if check_cmd:
+        write_file = sys._MEIPASS + '\\watchman_dongle_mod.hex'
+    else:
+        try:
+            write_file = sys.argv[2]
+        except IndexError:
+            print("Write_file.hex or .bin")
+            sys.exit()
 
     hexfile = intelhex.IntelHex()
     ext = os.path.splitext(os.path.basename(write_file))[1]
@@ -342,6 +302,7 @@ elif arg == "write" or arg == "-w":
 
     mcu_reset()
     print("Done")
+    time.sleep(5)
 
 elif arg == "stp_off" or arg == "-off":
     stp_off()
